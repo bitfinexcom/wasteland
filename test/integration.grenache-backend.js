@@ -98,4 +98,78 @@ describe('Grenache Storage Backend', () => {
       })
     })
   }).timeout(20000)
+
+  it('gb stores data chunked with indirections', (done) => {
+    const link = new Link({
+      grape: 'http://127.0.0.1:30001'
+    })
+    link.start()
+
+    const { publicKey, secretKey } = ed.createKeyPair(ed.createSeed())
+
+    const gb = new GrenacheBackend({
+      transport: link,
+      keys: { publicKey, secretKey },
+      bufferSizelimit: 1000
+    })
+
+    const longString = new Array(22000).join('a')
+
+    const opts = { seq: 1 }
+
+    gb.put(longString, opts, (err, hash) => {
+      if (err) throw err
+
+      assert.ok(hash)
+      gb.get(hash, {}, (err, data) => {
+        if (err) throw err
+
+        assert.equal(data.v, longString)
+        assert.ok(data.id)
+        assert.ok(data.seq)
+        assert.ok(data.salt)
+        assert.equal(data.k, publicKey.toString('hex'))
+
+        link.stop()
+        done()
+      })
+    })
+  }).timeout(20000)
+
+  it('gb stores data chunked with indirections, large data', (done) => {
+    const link = new Link({
+      grape: 'http://127.0.0.1:30001'
+    })
+    link.start()
+
+    const { publicKey, secretKey } = ed.createKeyPair(ed.createSeed())
+
+    const gb = new GrenacheBackend({
+      transport: link,
+      keys: { publicKey, secretKey },
+      bufferSizelimit: 1000
+    })
+
+    const longString = new Array(2200000).join('a')
+
+    const opts = { seq: 1 }
+
+    gb.put(longString, opts, (err, hash) => {
+      if (err) throw err
+
+      assert.ok(hash)
+      gb.get(hash, {}, (err, data) => {
+        if (err) throw err
+
+        assert.equal(data.v, longString)
+        assert.ok(data.id)
+        assert.ok(data.seq)
+        assert.ok(data.salt)
+        assert.equal(data.k, publicKey.toString('hex'))
+
+        link.stop()
+        done()
+      })
+    })
+  }).timeout(20000)
 })

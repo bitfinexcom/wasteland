@@ -44,7 +44,7 @@ class MemoryBackend {
 
   getSha (data) {
     let sha = crypto.createHash('sha1')
-    return sha.update(data).digest('hex')
+    return sha.update(data + Math.random()).digest('hex')
   }
 
   getPayload (data, opts) {

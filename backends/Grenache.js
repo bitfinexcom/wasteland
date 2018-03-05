@@ -6,7 +6,9 @@ const crypto = require('crypto')
 
 const {
   prepareData,
-  getMaxPointersPerBuffer
+  getMaxPointersPerBuffer,
+  getSliceLimit,
+  prepareMultiLevelData
 } = require('../lib/data-helper.js')
 
 class GrenacheBackend {
@@ -14,7 +16,7 @@ class GrenacheBackend {
     this.conf = {
       transport: null,
 
-      maxIndirections: 3,
+      maxIndirections: 2,
       bufferSizelimit: 1000,
       addressSize: 40, // sha1 length,
       concurrentRequests: 5,
@@ -37,6 +39,12 @@ class GrenacheBackend {
       this.conf.bufferSizelimit,
       this.conf.addressSize,
       this.wrapPointers
+    )
+
+    this.maxSliceCount = getSliceLimit(
+      this.conf.bufferSizelimit,
+      this.maxPointersPerBuffer,
+      this.conf.maxIndirections
     )
   }
 
@@ -66,8 +74,6 @@ class GrenacheBackend {
   }
 
   put (data, opts, cb) {
-    if (!_.isFunction(cb)) return cb(new Error('no callback provided'))
-
     const conf = _.pick(this.conf, [ 'bufferSizelimit' ])
 
     prepareData(data, conf, (err, slices) => {
@@ -92,25 +98,62 @@ class GrenacheBackend {
 
   getSha (data) {
     let sha = crypto.createHash('sha1')
-    return sha.update(data).digest('hex')
+    return sha.update(data + Math.random()).digest('hex')
+  }
+
+  storeParallel (slices, opts, cb) {
+    const tasks = this.getStoreTasks(slices, opts)
+    this.taskParallel(tasks, (err, res) => {
+      if (err) return cb(err)
+
+      cb(null, res)
+    })
+  }
+
+  wrapAndStorePointers (p, opts, cb) {
+    const wrapped = this.wrapPointers(p)
+    const sha = this.getSha(JSON.stringify(wrapped))
+    opts.salt = sha
+
+    this.send(wrapped, opts, cb)
   }
 
   storeChunked (slices, opts, cb) {
-    if (slices.length < this.maxPointersPerBuffer) {
-      const tasks = this.getStoreTasks(slices, opts)
-      this.taskParallel(tasks, (err, res) => {
+    const maxPointersPerBuffer = this.maxPointersPerBuffer
+
+    if (slices.length < maxPointersPerBuffer) {
+      this.storeParallel(slices, opts, (err, pointers) => {
         if (err) return cb(err)
 
-        const wrapped = this.wrapPointers(res)
-        const sha = this.getSha(JSON.stringify(wrapped))
-        opts.salt = sha
-        this.send(wrapped, opts, cb)
+        this.wrapAndStorePointers(pointers, opts, cb)
       })
 
       return
     }
 
-    throw new Error('chunking with more layers not implemented')
+    if (slices.length > this.maxSliceCount) {
+      return cb(new Error('data too large: adjust maxIndirections'))
+    }
+
+    const chunks = prepareMultiLevelData(slices, maxPointersPerBuffer)
+
+    this.storeUntilPointersFit(chunks, opts, cb)
+  }
+
+  storeUntilPointersFit (slices, opts, cb) {
+    const tasks = slices.map((box) => {
+      return (cb) => {
+        this.storeParallel(box, opts, cb)
+      }
+    })
+
+    async.series(tasks, (err, res) => {
+      if (err) return err
+
+      const flat = _.flatten(res)
+      const wrapped = this.wrapPointers(flat)
+      this.put(wrapped, opts, cb)
+    })
   }
 
   wrapPointers (pointers) {
@@ -211,7 +254,7 @@ class GrenacheBackend {
 
       payload.v = reduced
 
-      cb(null, payload)
+      this.maybeRetrieveChunked(payload, cb)
     })
   }
 

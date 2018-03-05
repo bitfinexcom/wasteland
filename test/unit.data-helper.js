@@ -8,10 +8,11 @@ const bencode = require('bencode')
 const {
   createSlices,
   getMaxBufferSizeList,
-  getMaxBufferSizeString
+  getMaxBufferSizeString,
+  prepareMultiLevelData
 } = require('../lib/data-helper.js')
 
-describe('unit: createPointers', () => {
+describe('unit: data-helper', () => {
   it('createSlices doesnt slice data thats fits into the limit', (done) => {
     const payload = '1234567890'
 
@@ -25,6 +26,15 @@ describe('unit: createPointers', () => {
       assert.equal(res.length, 1)
       done()
     })
+  })
+
+  it('prepareMultiLevelData: nests arrays', () => {
+    const limit = 3
+    const data = new Array(10).fill('foo')
+    const res = prepareMultiLevelData(data, limit)
+
+    assert.equal(res.length, 4)
+    assert.deepEqual(res[0], [ 'foo', 'foo', 'foo' ])
   })
 
   it('getMaxBufferSizeList: returns the amount of pointers', () => {
