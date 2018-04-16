@@ -172,4 +172,42 @@ describe('Grenache Storage Backend', () => {
       })
     })
   }).timeout(20000)
+
+  it('verifies sequences', (done) => {
+    const link = new Link({
+      grape: 'http://127.0.0.1:30001'
+    })
+    link.start()
+
+    const { publicKey, secretKey } = ed.createKeyPair(ed.createSeed())
+
+    const gb = new GrenacheBackend({
+      transport: link,
+      keys: { publicKey, secretKey },
+      bufferSizelimit: 1000
+    })
+
+    const opts = { seq: 1, salt: 'pineapple-salt' }
+
+    gb.put('furbie', opts, (err, hash) => {
+      if (err) throw err
+      gb.put('furbie', opts, (err, hash) => {
+        assert.ok(err) // outdated sequence
+        assert.equal(err.message, '302 sequence number less than current')
+
+        opts.seq = 2 // increase seq
+        gb.put('furbie-foo', opts, (err, hash) => {
+          if (err) throw err
+          gb.get(hash, {}, (err, data) => {
+            if (err) throw err
+            assert.equal(data.seq, 2)
+            assert.equal(data.v, 'furbie-foo')
+
+            link.stop()
+            done()
+          })
+        })
+      })
+    })
+  }).timeout(20000)
 })
