@@ -34,7 +34,7 @@ describe('Plain Memory Storage Backend', () => {
     })
   })
 
-  it('verifies sequences ', (done) => {
+  it('verifies sequences', (done) => {
     const mb = new MemoryBackend({
       keys: { publicKey, secretKey }
     })
@@ -44,7 +44,9 @@ describe('Plain Memory Storage Backend', () => {
     mb.put('furbie', opts, (err, hash) => {
       if (err) throw err
       mb.put('furbie', opts, (err, hash) => {
-        assert.ok(err)
+        assert.ok(err) // outdated sequence
+        assert.equal(err.message, 'ERR_CONFLICT_SEQ')
+
         opts.seq = 2
         mb.put('furbie-foo', opts, (err, hash) => {
           if (err) throw err
