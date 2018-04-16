@@ -20,15 +20,36 @@ const gb = new GrenacheBackend({
 
 const wl = new Wasteland({ backend: gb })
 
-const opts = { seq: 1, salt: 'pineapple-salt' }
+function storeMutable (cb) {
+  console.log('storing mutable data')
 
-wl.put('unchunked-data', opts, (err, hash) => {
-  if (err) throw err
-
-  wl.get(hash, {}, (err, data) => {
+  const opts = { seq: 1, salt: 'pineapple-salt' }
+  wl.put('unchunked-data', opts, (err, hash) => {
     if (err) throw err
 
-    console.log(data)
-    link.stop()
+    wl.get(hash, {}, (err, data) => {
+      if (err) throw err
+
+      console.log(data)
+      cb(null)
+    })
   })
-})
+}
+
+function storeImmutable () {
+  console.log('storing immutable data')
+
+  const opts = {}
+  wl.put('unchunked-data', opts, (err, hash) => {
+    if (err) throw err
+
+    wl.get(hash, {}, (err, data) => {
+      if (err) throw err
+
+      console.log(data)
+      link.stop()
+    })
+  })
+}
+
+storeMutable(() => storeImmutable())

@@ -14,23 +14,36 @@ class MemoryBackend {
     }
 
     _.extend(this.conf, conf)
-
-    if (!this.conf.keys) {
-      throw new Error('no keys set')
-    }
   }
 
   put (data, opts, cb) {
     if (!data) return cb(new Error('no data provided'))
 
+    const isMutable = !!opts.seq || opts.seq === 0
     const payload = this.getPayload(data, opts)
-    const key = Buffer.concat([
-      Buffer.from(payload.k), Buffer.from(payload.salt)
-    ]).toString('hex')
+
+    let key
+    if (isMutable) {
+      key = Buffer.concat([
+        Buffer.from(payload.k), Buffer.from(payload.salt)
+      ]).toString('hex')
+    } else {
+      const tmpKey = bencode.encode(payload.v)
+      let sha = crypto.createHash('sha1').update(tmpKey)
+      key = sha.digest('hex')
+    }
 
     if (!this.store[key]) {
       this.store[key] = payload
       return cb(null, key)
+    }
+
+    if (typeof this.store[key].seq === 'undefined') {
+      return cb(null, key)
+    }
+
+    if (!this.conf.keys) {
+      return cb(new Error('no keys set'))
     }
 
     const nextSeq = this.store[key].seq + 1
@@ -49,6 +62,9 @@ class MemoryBackend {
 
   getPayload (data, opts) {
     const salt = opts.salt || this.getSha(data)
+
+    if (!opts.seq) return { v: data }
+
     const res = {
       v: data,
       seq: opts.seq,

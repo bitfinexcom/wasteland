@@ -29,10 +29,6 @@ class GrenacheBackend {
       throw new Error('no transport set')
     }
 
-    if (!this.conf.keys) {
-      throw new Error('no keys set')
-    }
-
     this.transport = this.conf.transport
 
     this.maxPointersPerBuffer = getMaxPointersPerBuffer(
@@ -61,6 +57,10 @@ class GrenacheBackend {
   getPayload (data, opts = {}) {
     const res = {
       v: data
+    }
+
+    if (!opts.seq) {
+      return res
     }
 
     // mutable
@@ -189,10 +189,27 @@ class GrenacheBackend {
   send (data, opts, cb) {
     const payload = this.getPayload(data, opts)
 
+    if (opts.seq !== 0 && !opts.seq) {
+      return this.sendImmutable(payload, opts, cb)
+    }
+
     const { keys } = this.conf
+    if (!keys) {
+      return cb(new Error('no keys set'))
+    }
 
     opts.keys = keys
     return this.sendMutable(payload, opts, cb)
+  }
+
+  sendImmutable (payload, opts, cb) {
+    if (opts.salt) payload.salt = opts.salt
+
+    this.transport.put(payload, (err, hash) => {
+      if (err) return cb(err)
+
+      cb(null, hash)
+    })
   }
 
   sendMutable (payload, opts, cb) {

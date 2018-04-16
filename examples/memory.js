@@ -12,15 +12,35 @@ const mb = new MemoryBackend({
 
 const wl = new Wasteland({ backend: mb })
 
-const opts = { seq: 1, salt: 'salt123' }
+function storeMutable (cb) {
+  console.log('storing mutable data')
 
-wl.put('furbie', opts, (err, hash) => {
-  if (err) throw err
-
-  wl.get(hash, opts, (err, data) => {
+  const opts = { seq: 1, salt: 'pineapple-salt' }
+  wl.put('unchunked-data', opts, (err, hash) => {
     if (err) throw err
 
-    console.log('response:')
-    console.log(data)
+    wl.get(hash, {}, (err, data) => {
+      if (err) throw err
+
+      console.log(data)
+      cb(null)
+    })
   })
-})
+}
+
+function storeImmutable () {
+  console.log('storing immutable data')
+
+  const opts = {}
+  wl.put('unchunked-data', opts, (err, hash) => {
+    if (err) throw err
+
+    wl.get(hash, {}, (err, data) => {
+      if (err) throw err
+
+      console.log(data)
+    })
+  })
+}
+
+storeMutable(() => storeImmutable())
