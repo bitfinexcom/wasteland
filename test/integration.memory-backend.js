@@ -60,4 +60,28 @@ describe('Plain Memory Storage Backend', () => {
       })
     })
   })
+
+  it('stores immutable data', (done) => {
+    const mb = new MemoryBackend()
+
+    const opts = {} // no sequence provided, data is stored immutable
+    mb.put('furbie', opts, (err, hash) => {
+      if (err) throw err
+
+      mb.put('furbie', opts, (err, hash2) => {
+        if (err) throw err
+
+        assert.equal(hash, hash2) // hash/key stays same
+
+        mb.put('furbie-foo', opts, (err, hash3) => {
+          if (err) throw err
+          // different content, different hash/key
+          assert.notEqual(hash2, hash3)
+          assert.notEqual(hash, hash3)
+
+          done()
+        })
+      })
+    })
+  }).timeout(20000)
 })

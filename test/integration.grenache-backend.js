@@ -210,4 +210,36 @@ describe('Grenache Storage Backend', () => {
       })
     })
   }).timeout(20000)
+
+  it('stores immutable data', (done) => {
+    const link = new Link({
+      grape: 'http://127.0.0.1:30001'
+    })
+    link.start()
+
+    const gb = new GrenacheBackend({
+      transport: link,
+      bufferSizelimit: 1000
+    })
+
+    const opts = {} // no sequence provided, data is stored immutable
+    gb.put('furbie', opts, (err, hash) => {
+      if (err) throw err
+
+      gb.put('furbie', opts, (err, hash2) => {
+        if (err) throw err
+        assert.equal(hash, hash2) // hash/key stays same
+
+        gb.put('furbie-foo', opts, (err, hash3) => {
+          if (err) throw err
+          // different content, different hash/key
+          assert.notEqual(hash2, hash3)
+          assert.notEqual(hash, hash3)
+
+          link.stop()
+          done()
+        })
+      })
+    })
+  }).timeout(20000)
 })
