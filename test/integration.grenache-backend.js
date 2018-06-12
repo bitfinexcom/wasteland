@@ -246,4 +246,41 @@ describe('Grenache Storage Backend', () => {
       })
     })
   }).timeout(20000)
+
+  it('gb stores chunked immutable data', (done) => {
+    const link = new Link({
+      grape: 'http://127.0.0.1:30001'
+    })
+    link.start()
+
+    const { publicKey, secretKey } = ed.createKeyPair(ed.createSeed())
+
+    const gb = new GrenacheBackend({
+      transport: link,
+      keys: { publicKey, secretKey },
+      bufferSizelimit: 1000
+    })
+
+    const longString = new Array(22000).join('a')
+
+    const opts = {}
+    gb.put(longString, opts, (err, hash) => {
+      if (err) throw err
+
+      assert.ok(hash)
+      gb.get(hash, {}, (err, data) => {
+        if (err) throw err
+
+        assert.equal(data.v, longString)
+        assert.ok(data.id)
+        assert.strictEqual(data.seq, undefined)
+        assert.strictEqual(data.salt, undefined)
+        assert.strictEqual(data.k, undefined)
+
+        link.stop()
+        done()
+      })
+    })
+
+  }).timeout(20000)
 })
