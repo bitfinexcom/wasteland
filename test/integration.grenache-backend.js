@@ -211,7 +211,7 @@ describe('Grenache Storage Backend', () => {
     })
   }).timeout(20000)
 
-  it('stores immutable data', (done) => {
+  it('gb stores immutable data', (done) => {
     const link = new Link({
       grape: 'http://127.0.0.1:30001'
     })
@@ -236,8 +236,12 @@ describe('Grenache Storage Backend', () => {
           assert.notEqual(hash2, hash3)
           assert.notEqual(hash, hash3)
 
-          link.stop()
-          done()
+          gb.get(hash2, {}, (err, res) => {
+            if (err) throw err
+            assert.equal(res.v, 'furbie')
+            link.stop()
+            done()
+          })
         })
       })
     })
