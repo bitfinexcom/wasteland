@@ -53,13 +53,12 @@ describe('Wasteland with Grenache Storage Backend', () => {
       if (err) throw err
 
       assert.ok(hash)
-      wl.get(hash, {}, (err, data) => {
+      wl.get({ hash: hash, salt: 'pineapple-salt' }, {}, (err, data) => {
         if (err) throw err
 
         assert.equal(data.v, 'unchunked-data')
         assert.ok(data.id)
         assert.ok(data.seq)
-        assert.equal(data.salt, 'pineapple-salt')
         assert.equal(data.k, publicKey.toString('hex'))
 
         link.stop()

@@ -56,14 +56,14 @@ const gb = new GrenacheBackend({
 const wl = new Wasteland({ backend: gb })
 
 const opts = { seq: 1, salt: 'pineapple-salt' }
-
 wl.put('unchunked-data', opts, (err, hash) => {
   if (err) throw err
 
-  wl.get(hash, {}, (err, data) => {
+  wl.get({ hash: hash, salt: 'pineapple-salt' }, {}, (err, data) => {
     if (err) throw err
 
     console.log(data)
+    cb(null)
   })
 })
 

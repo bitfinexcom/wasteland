@@ -27,7 +27,7 @@ function storeMutable (cb) {
   wl.put('unchunked-data', opts, (err, hash) => {
     if (err) throw err
 
-    wl.get(hash, {}, (err, data) => {
+    wl.get({ hash: hash, salt: 'pineapple-salt' }, {}, (err, data) => {
       if (err) throw err
 
       console.log(data)

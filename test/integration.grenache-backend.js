@@ -47,7 +47,7 @@ describe('Grenache Storage Backend', () => {
       if (err) throw err
 
       assert.ok(hash)
-      gb.get(hash, {}, (err, data) => {
+      gb.get({ hash: hash, salt: 'pineapple-salt' }, {}, (err, data) => {
         if (err) throw err
 
         assert.equal(data.v, 'unchunked-data')
@@ -62,7 +62,7 @@ describe('Grenache Storage Backend', () => {
     })
   }).timeout(7000)
 
-  it('gb stores data chunked', (done) => {
+  it('gb stores data chunked - no indirections', (done) => {
     const link = new Link({
       grape: 'http://127.0.0.1:30001'
     })
