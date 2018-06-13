@@ -1,6 +1,6 @@
 {
   "name": "wasteland",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Slice and store data",
   "main": "index.js",
   "scripts": {
