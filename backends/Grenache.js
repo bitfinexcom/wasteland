@@ -7,6 +7,7 @@ const crypto = require('crypto')
 const {
   prepareData,
   getMaxPointersPerBuffer,
+  getMaxPointersPerSaltedBuffer,
   getSliceLimit,
   prepareMultiLevelData
 } = require('../lib/data-helper.js')
@@ -18,30 +19,19 @@ class GrenacheBackend {
 
       maxIndirections: 2,
       bufferSizelimit: 1000,
-      addressSize: 40, // sha1 length,
       concurrentRequests: 5,
       keys: null
     }
 
     _.extend(this.conf, conf)
 
+    this.conf.addressSize = 40 // sha1 length
+
     if (!this.conf.transport) {
       throw new Error('no transport set')
     }
 
     this.transport = this.conf.transport
-
-    this.maxPointersPerBuffer = getMaxPointersPerBuffer(
-      this.conf.bufferSizelimit,
-      this.conf.addressSize,
-      this.wrapPointers
-    )
-
-    this.maxSliceCount = getSliceLimit(
-      this.conf.bufferSizelimit,
-      this.maxPointersPerBuffer,
-      this.conf.maxIndirections
-    )
   }
 
   start (cb = () => {}) {
@@ -76,19 +66,35 @@ class GrenacheBackend {
   put (data, opts, cb) {
     const conf = _.pick(this.conf, [ 'bufferSizelimit' ])
 
+    const isMutable = typeof opts.seq === 'number'
+    if (isMutable && !opts.salt) return cb(new Error('ERR_MUTABLE_NO_SALT'))
+
     prepareData(data, conf, (err, slices) => {
       if (err) return cb(err)
 
       if (slices.length === 1) {
-        if (!opts.salt) {
-          opts.salt = this.getSha(slices[0])
-        }
-
         this.send(slices[0], opts, cb)
         return
       }
 
-      this.storeChunked(slices, opts, (err, data) => {
+      const sliceOpts = { ...opts }
+
+      const _max = isMutable ? getMaxPointersPerSaltedBuffer : getMaxPointersPerBuffer
+      sliceOpts.maxPointersPerBuffer = _max(
+        this.conf.bufferSizelimit,
+        this.conf.addressSize,
+        this.wrapPointers
+      )
+
+      sliceOpts.maxSliceCount = getSliceLimit(
+        this.conf.bufferSizelimit,
+        sliceOpts.maxPointersPerBuffer,
+        this.conf.maxIndirections
+      )
+
+      sliceOpts.isMutable = isMutable
+
+      this.storeChunked(slices, sliceOpts, (err, data) => {
         if (err) return cb(err)
 
         return cb(null, data)
@@ -103,6 +109,7 @@ class GrenacheBackend {
 
   storeParallel (slices, opts, cb) {
     const tasks = this.getStoreTasks(slices, opts)
+
     this.taskParallel(tasks, (err, res) => {
       if (err) return cb(err)
 
@@ -112,17 +119,18 @@ class GrenacheBackend {
 
   wrapAndStorePointers (p, opts, cb) {
     const wrapped = this.wrapPointers(p)
-    const sha = this.getSha(JSON.stringify(wrapped))
-    opts.salt = sha
+
+    if (!opts.salt) {
+      opts.salt = this.getSha(JSON.stringify(wrapped))
+    }
 
     this.send(wrapped, opts, cb)
   }
 
   storeChunked (slices, opts, cb) {
-    const maxPointersPerBuffer = this.maxPointersPerBuffer
-
+    const maxPointersPerBuffer = opts.maxPointersPerBuffer
     if (slices.length < maxPointersPerBuffer) {
-      this.storeParallel(slices, opts, (err, pointers) => {
+      this.storeParallel(slices, { ...opts }, (err, pointers) => {
         if (err) return cb(err)
 
         this.wrapAndStorePointers(pointers, opts, cb)
@@ -131,7 +139,7 @@ class GrenacheBackend {
       return
     }
 
-    if (slices.length > this.maxSliceCount) {
+    if (slices.length > opts.maxSliceCount) {
       return cb(new Error('data too large: adjust maxIndirections'))
     }
 
@@ -168,8 +176,15 @@ class GrenacheBackend {
   getStoreTasks (slices, opts) {
     const tasks = slices.map((chunk) => {
       return (cb) => {
-        opts.salt = this.getSha(chunk)
-        this.send(chunk, opts, cb)
+        const _opts = { ...opts }
+        _opts.salt = this.getSha(chunk)
+
+        this.send(chunk, _opts, (err, hash, salt) => {
+          if (err) return cb(err)
+
+          const res = [ hash, salt ]
+          cb(null, res)
+        })
       }
     })
 
@@ -203,8 +218,6 @@ class GrenacheBackend {
   }
 
   sendImmutable (payload, opts, cb) {
-    if (opts.salt) payload.salt = opts.salt
-
     this.transport.put(payload, (err, hash) => {
       if (err) return cb(err)
 
@@ -216,7 +229,7 @@ class GrenacheBackend {
     this.transport.putMutable(payload, opts, (err, hash) => {
       if (err) return cb(err)
 
-      cb(null, hash)
+      cb(null, hash, opts.salt)
     })
   }
 
@@ -249,6 +262,15 @@ class GrenacheBackend {
   getRetrieveTasks (pointers, opts) {
     const tasks = pointers.map((pointer) => {
       return (cb) => {
+        // salted
+        if (Array.isArray(pointer) && pointer[1]) {
+          const req = { hash: pointer[0], salt: pointer[1] }
+          return this.get(req, { recursive: true }, cb)
+        } else if (Array.isArray(pointer)) {
+          return this.get(pointer[0], { recursive: true }, cb)
+        }
+
+        // compat for previous behaviour
         this.get(pointer, { recursive: true }, cb)
       }
     })
@@ -265,9 +287,17 @@ class GrenacheBackend {
     this.taskParallel(tasks, (err, res) => {
       if (err) return cb(err)
 
+      let err2 = null
       const reduced = res.reduce((acc, el) => {
+        if (!el || !el.v) {
+          err2 = new Error('ERR_BROKEN_CHUNK')
+          return acc
+        }
+
         return acc + el.v
       }, '')
+
+      if (err2) return cb(err2)
 
       payload.v = reduced
 
