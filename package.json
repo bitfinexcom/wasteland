@@ -21,8 +21,8 @@
   "license": "MIT",
   "devDependencies": {
     "grenache-grape": "git+https://github.com/bitfinexcom/grenache-grape.git",
-    "mocha": "^4.0.1",
-    "standard": "^10.0.3"
+    "mocha": "^5.2.0",
+    "standard": "^11.0.1"
   },
   "dependencies": {
     "async": "^2.6.0",

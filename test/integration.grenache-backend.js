@@ -47,7 +47,7 @@ describe('Grenache Storage Backend', () => {
       if (err) throw err
 
       assert.ok(hash)
-      gb.get(hash, {}, (err, data) => {
+      gb.get({ hash: hash, salt: 'pineapple-salt' }, {}, (err, data) => {
         if (err) throw err
 
         assert.equal(data.v, 'unchunked-data')
@@ -62,7 +62,7 @@ describe('Grenache Storage Backend', () => {
     })
   }).timeout(7000)
 
-  it('gb stores data chunked', (done) => {
+  it('gb stores mutable data chunked - no indirections', (done) => {
     const link = new Link({
       grape: 'http://127.0.0.1:30001'
     })
@@ -78,13 +78,13 @@ describe('Grenache Storage Backend', () => {
 
     const longString = new Array(1005).join('a')
 
-    const opts = { seq: 1 }
+    const opts = { seq: 1, salt: 'foo' }
 
     gb.put(longString, opts, (err, hash) => {
       if (err) throw err
 
       assert.ok(hash)
-      gb.get(hash, {}, (err, data) => {
+      gb.get({ hash: hash, salt: 'foo' }, {}, (err, data) => {
         if (err) throw err
 
         assert.equal(data.v, longString)
@@ -97,6 +97,55 @@ describe('Grenache Storage Backend', () => {
         done()
       })
     })
+  }).timeout(20000)
+
+  it('gb updates mutable data chunked - no indirections', (done) => {
+    const link = new Link({
+      grape: 'http://127.0.0.1:30001'
+    })
+    link.start()
+
+    const { publicKey, secretKey } = ed.createKeyPair(ed.createSeed())
+
+    const gb = new GrenacheBackend({
+      transport: link,
+      keys: { publicKey, secretKey },
+      bufferSizelimit: 1000
+    })
+
+    const longString = new Array(1005).join('a')
+
+    const opts = { seq: 1, salt: 'foo' }
+
+    gb.put(longString, opts, (err, hash) => {
+      if (err) throw err
+
+      assert.ok(hash)
+      gb.get({ hash: hash, salt: 'foo' }, {}, (err, data) => {
+        if (err) throw err
+
+        assert.equal(data.v, longString)
+        update()
+      })
+    })
+
+    function update () {
+      const updatedLongString = new Array(1005).join('b')
+      opts.seq = 2
+
+      gb.put(updatedLongString, opts, (err, hash) => {
+        if (err) throw err
+
+        assert.ok(hash)
+        gb.get({ hash: hash, salt: 'foo' }, {}, (err, data) => {
+          if (err) throw err
+
+          assert.equal(data.v, updatedLongString)
+          link.stop()
+          done()
+        })
+      })
+    }
   }).timeout(20000)
 
   it('gb stores data chunked with indirections', (done) => {
@@ -115,13 +164,13 @@ describe('Grenache Storage Backend', () => {
 
     const longString = new Array(22000).join('a')
 
-    const opts = { seq: 1 }
+    const opts = { seq: 1, salt: 'himalayan_salt' }
 
     gb.put(longString, opts, (err, hash) => {
       if (err) throw err
 
       assert.ok(hash)
-      gb.get(hash, {}, (err, data) => {
+      gb.get({ hash: hash, salt: 'himalayan_salt' }, {}, (err, data) => {
         if (err) throw err
 
         assert.equal(data.v, longString)
@@ -152,13 +201,13 @@ describe('Grenache Storage Backend', () => {
 
     const longString = new Array(2200000).join('a')
 
-    const opts = { seq: 1 }
+    const opts = { seq: 1, salt: 'ocean_salt' }
 
     gb.put(longString, opts, (err, hash) => {
       if (err) throw err
 
       assert.ok(hash)
-      gb.get(hash, {}, (err, data) => {
+      gb.get({ hash: hash, salt: 'ocean_salt' }, {}, (err, data) => {
         if (err) throw err
 
         assert.equal(data.v, longString)
@@ -198,7 +247,7 @@ describe('Grenache Storage Backend', () => {
         opts.seq = 2 // increase seq
         gb.put('furbie-foo', opts, (err, hash) => {
           if (err) throw err
-          gb.get(hash, {}, (err, data) => {
+          gb.get({ hash, salt: 'pineapple-salt' }, {}, (err, data) => {
             if (err) throw err
             assert.equal(data.seq, 2)
             assert.equal(data.v, 'furbie-foo')
@@ -211,7 +260,7 @@ describe('Grenache Storage Backend', () => {
     })
   }).timeout(20000)
 
-  it('stores immutable data', (done) => {
+  it('gb stores immutable data', (done) => {
     const link = new Link({
       grape: 'http://127.0.0.1:30001'
     })
@@ -236,9 +285,49 @@ describe('Grenache Storage Backend', () => {
           assert.notEqual(hash2, hash3)
           assert.notEqual(hash, hash3)
 
-          link.stop()
-          done()
+          gb.get(hash2, {}, (err, res) => {
+            if (err) throw err
+            assert.equal(res.v, 'furbie')
+            link.stop()
+            done()
+          })
         })
+      })
+    })
+  }).timeout(20000)
+
+  it('gb stores chunked immutable data', (done) => {
+    const link = new Link({
+      grape: 'http://127.0.0.1:30001'
+    })
+    link.start()
+
+    const { publicKey, secretKey } = ed.createKeyPair(ed.createSeed())
+
+    const gb = new GrenacheBackend({
+      transport: link,
+      keys: { publicKey, secretKey },
+      bufferSizelimit: 1000
+    })
+
+    const longString = new Array(22000).join('a')
+
+    const opts = {}
+    gb.put(longString, opts, (err, hash) => {
+      if (err) throw err
+
+      assert.ok(hash)
+      gb.get(hash, {}, (err, data) => {
+        if (err) throw err
+
+        assert.equal(data.v, longString)
+        assert.ok(data.id)
+        assert.strictEqual(data.seq, undefined)
+        assert.strictEqual(data.salt, undefined)
+        assert.strictEqual(data.k, undefined)
+
+        link.stop()
+        done()
       })
     })
   }).timeout(20000)

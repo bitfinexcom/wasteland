@@ -56,14 +56,14 @@ const gb = new GrenacheBackend({
 const wl = new Wasteland({ backend: gb })
 
 const opts = { seq: 1, salt: 'pineapple-salt' }
-
 wl.put('unchunked-data', opts, (err, hash) => {
   if (err) throw err
 
-  wl.get(hash, {}, (err, data) => {
+  wl.get({ hash: hash, salt: 'pineapple-salt' }, {}, (err, data) => {
     if (err) throw err
 
     console.log(data)
+    cb(null)
   })
 })
 
@@ -87,6 +87,37 @@ wl.put('unchunked-data', opts, (err, hash) => {
 ### Custom Backends
 
 ## Data Model
+
+### Wasteland pointers
+
+Pointers to data or other pointers are stored in the following format:
+
+```
+{ wasteland_type: 'pointers',
+  p:
+   [ [ '8e65439da41c0263512d965af3b45e750379f808',
+       '109eb3bb524d9fce41af8b232b14353ec922f357' ],
+     [ '0533d23c50b8e9a33ab89dd9a2f1cb3323695375',
+       '9c5519b713a16afd0f411b7b53720f508dcf6319' ] ] }
+```
+
+In this case the first chunk has the hash `8e65439da41c0263512d965af3b45e750379f808` and because it is stored as mutable, it has a salt of `109eb3bb524d9fce41af8b232b14353ec922f357`.
+
+The second chunk has the hash `0533d23c50b8e9a33ab89dd9a2f1cb3323695375` and the salt `9c5519b713a16afd0f411b7b53720f508dcf6319`.
+
+Immutable data has no salt, so the second index is `null`:
+
+```
+{ wasteland_type: 'pointers',
+  p:
+   [ [ '3465439da41c0263512d965af3b45e750379f808',
+       null ],
+     [ 'ea33d23c50b8e9a33ab89dd9a2f1cb3323695375',
+       null ] ] }
+```
+
+
+### BEP 44 data models
 
 These are the data models each storage-backend has to implement.
 
