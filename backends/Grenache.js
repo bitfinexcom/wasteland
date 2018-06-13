@@ -264,7 +264,7 @@ class GrenacheBackend {
       return (cb) => {
         const _cb = (err, data) => {
           if (err) return cb(err)
-          if (!data) return cb(new Error('missing chunk on dht: ' + pointer))
+          if (!data) return cb(new Error('ERR_BROKEN_CHUNK__' + pointer + '__PARENT__' + opts.id))
 
           cb(null, data)
         }
@@ -288,7 +288,7 @@ class GrenacheBackend {
   handleChunked (payload, pointers, cb) {
     payload.original = payload.v
 
-    const opts = {}
+    const opts = { id: payload.id }
     const tasks = this.getRetrieveTasks(pointers, opts)
 
     this.taskParallel(tasks, (err, res) => {

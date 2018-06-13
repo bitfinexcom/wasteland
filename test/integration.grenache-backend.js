@@ -374,7 +374,10 @@ describe('Grenache Storage Backend', () => {
       function _continue (res) {
         gb.get({ hash: hash, salt: 'mineral_salt' }, {}, (err, data) => {
           assert.ok(err)
-          assert.equal(err.message, 'missing chunk on dht: invalid003b253d87d345bd42d19de0dba00a30m')
+          assert.ok(
+            /^ERR_BROKEN_CHUNK__invalid003b253d87d345bd42d19de0dba00a30m/.test(err.message),
+            'contains ERR_BROKEN_CHUNK__invalid003b253d87d345bd42d19de0dba00a30m'
+          )
 
           link.stop()
           done()
