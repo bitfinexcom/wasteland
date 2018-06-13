@@ -331,4 +331,55 @@ describe('Grenache Storage Backend', () => {
       })
     })
   }).timeout(20000)
+
+  it('gb handles invalid reads', (done) => {
+    const link = new Link({
+      grape: 'http://127.0.0.1:30001'
+    })
+    link.start()
+
+    const { publicKey, secretKey } = ed.createKeyPair(ed.createSeed())
+
+    const gb = new GrenacheBackend({
+      transport: link,
+      keys: { publicKey, secretKey },
+      bufferSizelimit: 1000
+    })
+
+    const longString = new Array(22000).join('a')
+
+    const opts = { seq: 1, salt: 'mineral_salt' }
+
+    gb.put(longString, opts, (err, hash) => {
+      if (err) throw err
+
+      assert.ok(hash)
+      gb.transport.get({ hash: hash, salt: 'mineral_salt' }, (err, data) => {
+        if (err) throw err
+
+        const v = JSON.parse(data.v)
+        v.p[1] = 'invalid003b253d87d345bd42d19de0dba00a30m'
+        data.v = JSON.stringify(v)
+        data.seq = 2
+
+        const o = { seq: 2, salt: data.salt, keys: gb.conf.keys }
+
+        gb.transport.putMutable(data, o, (err, res) => {
+          if (err) throw err
+
+          _continue(res)
+        })
+      })
+
+      function _continue (res) {
+        gb.get({ hash: hash, salt: 'mineral_salt' }, {}, (err, data) => {
+          assert.ok(err)
+          assert.equal(err.message, 'missing chunk on dht: invalid003b253d87d345bd42d19de0dba00a30m')
+
+          link.stop()
+          done()
+        })
+      }
+    })
+  }).timeout(20000)
 })

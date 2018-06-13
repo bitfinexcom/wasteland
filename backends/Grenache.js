@@ -262,16 +262,23 @@ class GrenacheBackend {
   getRetrieveTasks (pointers, opts) {
     const tasks = pointers.map((pointer) => {
       return (cb) => {
+        const _cb = (err, data) => {
+          if (err) return cb(err)
+          if (!data) return cb(new Error('missing chunk on dht: ' + pointer))
+
+          cb(null, data)
+        }
+
         // salted
         if (Array.isArray(pointer) && pointer[1]) {
           const req = { hash: pointer[0], salt: pointer[1] }
-          return this.get(req, { recursive: true }, cb)
+          return this.get(req, { recursive: true }, _cb)
         } else if (Array.isArray(pointer)) {
-          return this.get(pointer[0], { recursive: true }, cb)
+          return this.get(pointer[0], { recursive: true }, _cb)
         }
 
         // compat for previous behaviour
-        this.get(pointer, { recursive: true }, cb)
+        this.get(pointer, { recursive: true }, _cb)
       }
     })
 
