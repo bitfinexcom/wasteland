@@ -324,7 +324,6 @@ describe('Grenache Storage Backend', () => {
         assert.ok(data.id)
         assert.strictEqual(data.seq, undefined)
         assert.strictEqual(data.salt, undefined)
-        assert.strictEqual(data.k, undefined)
 
         link.stop()
         done()
