@@ -29,6 +29,6 @@
     "bencode": "^1.0.0",
     "ed25519-supercop": "^1.0.2",
     "grenache-nodejs-link": "git+https://github.com/bitfinexcom/grenache-nodejs-link.git",
-    "lodash": "^4.17.4"
+    "lodash": "^4.17.21"
   }
 }
